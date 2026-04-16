@@ -392,6 +392,32 @@ func validateContentDigest(body []byte, headerValue string) bool {
 	return false
 }
 
+func loadServerCACertificate() (string, error) {
+	caCertPath := filepath.Join("certs", "ca-cert.pem")
+	data, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func normalizeCertificateString(cert string) string {
+	cert = strings.TrimSpace(cert)
+	if strings.Contains(cert, "-----BEGIN CERTIFICATE-----") {
+		lines := strings.Split(cert, "\n")
+		var normalized strings.Builder
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "-----BEGIN") || strings.HasPrefix(line, "-----END") {
+				continue
+			}
+			normalized.WriteString(line)
+		}
+		return normalized.String()
+	}
+	return strings.ReplaceAll(cert, "\n", "")
+}
+
 // ===== RFC 9421 HTTP MESSAGE SIGNATURE VERIFICATION =====
 
 // replayWindow is how far into the past or future a `created` timestamp may be.
@@ -826,12 +852,25 @@ func handleOnboarding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// RFC 9421: full signature verification using the cert from the request body
-	if err := verifyRFC9421Signature(r, certRaw, bodyBytes); err != nil {
-		log.Printf("[Onboarding] Signature verification failed: %v", err)
-		respondJSON(w, 401, signatureAuthError(err.Error()))
-		return
+	// Optionally accept the WFM root CA certificate from the client during onboarding
+	caCertRaw, _ := body["caCertificate"].(string)
+	if caCertRaw != "" {
+		serverCACert, err := loadServerCACertificate()
+		if err != nil {
+			log.Printf("[Onboarding] failed to read server root CA certificate: %v", err)
+			respondJSON(w, 500, ResponseError{Error: "internal server error"})
+			return
+		}
+		if normalizeCertificateString(caCertRaw) != normalizeCertificateString(serverCACert) {
+			respondJSON(w, 400, ResponseError{Error: "caCertificate does not match server root CA certificate"})
+			return
+		}
 	}
+
+	// NOTE: Per Margo spec and Eclipse Symphony implementation, signature verification
+	// is NOT performed on onboarding. Onboarding only validates the request structure
+	// and certificate state. Signature verification is enforced on authenticated endpoints
+	// (capabilities, deployments, status) after device registration.
 
 	// VALIDATE USING ASSERTIONS FROM JSON
 	errors := validateRequest("POST_onboarding", body)
@@ -1335,7 +1374,7 @@ func ensureTLSCertificates() (certFile, keyFile string, err error) {
 	// Generate server certificate
 	_, caKeyErr := os.Stat(caKeyPath)
 	_, caCertErr := os.Stat(caCertPath)
-	
+
 	if caCertErr == nil && caKeyErr == nil {
 		// CA files exist, use them to sign server cert
 		if err := generateCASignedServerCert(caCertPath, caKeyPath, certFile, keyFile); err != nil {
