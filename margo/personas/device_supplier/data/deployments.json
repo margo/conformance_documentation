@@ -1,0 +1,12 @@
+{
+  "8eae1000-6770-4e34-8698-c11d10491fa7:deployment-001": {
+    "id": "deployment-001",
+    "client_id": "8eae1000-6770-4e34-8698-c11d10491fa7",
+    "status_history": []
+  },
+  "e5f23e1c-ce0b-4a11-b27a-3071ca0e6764:deployment-001": {
+    "id": "deployment-001",
+    "client_id": "e5f23e1c-ce0b-4a11-b27a-3071ca0e6764",
+    "status_history": []
+  }
+}
