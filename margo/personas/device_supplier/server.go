@@ -4,8 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"crypto"
-	"crypto/ecdsa"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	htmsighttp "github.com/lestrrat-go/htmsig/http"
 )
 
 const (
@@ -537,103 +537,47 @@ func buildSignatureBase(r *http.Request, components []string, sigInputHeader str
 			sb.WriteString(fmt.Sprintf("%s: %s\n", strings.ToLower(comp), val))
 		}
 	}
-	// Append @signature-params line (no trailing newline per RFC 9421)
-	sb.WriteString(fmt.Sprintf("@signature-params: %s", sigInputHeader))
+	// Append @signature-params line: RFC 9421 §2.5 requires only the value part (without "label=")
+	// Strip the "label=" prefix from sigInputHeader to get just ("@method" ...);created=...
+	sigParamsValue := sigInputHeader
+	if eqIdx := strings.Index(sigInputHeader, "=("); eqIdx >= 0 {
+		sigParamsValue = sigInputHeader[eqIdx+1:]
+	}
+	sb.WriteString(fmt.Sprintf("@signature-params: %s", sigParamsValue))
 	return sb.String()
 }
 
-// verifyRFC9421Signature performs full RFC 9421 signature verification.
-// certPEM is the PEM-encoded X.509 certificate of the signer.
+// verifyRFC9421Signature performs full RFC 9421 signature verification using
+// the htmsig library (same library the device agent uses for signing).
+// certPEM is the PEM-encoded X.509 certificate (or base64-encoded PEM) of the signer.
 // bodyBytes may be nil for GET requests.
 func verifyRFC9421Signature(r *http.Request, certPEM string, bodyBytes []byte) error {
-	// 1. Validate Content-Digest if body is present
+	// 1. Signature-Input must be present — if not, it's a missing signature (401)
+	if r.Header.Get("Signature-Input") == "" {
+		return fmt.Errorf("Signature missing: Signature-Input header not present")
+	}
+
+	// 2. Validate Content-Digest if body is present (must come after Signature-Input
+	//    presence check, but before htmsig verification — empty/missing digest → 400)
 	if len(bodyBytes) > 0 {
 		digestHeader := r.Header.Get("Content-Digest")
-		log.Printf("[RFC9421] Content-Digest header: %s", digestHeader)
-		if !validateContentDigest(bodyBytes, digestHeader) {
+		if digestHeader == "" || !validateContentDigest(bodyBytes, digestHeader) {
 			return fmt.Errorf("Content-Digest mismatch or missing")
 		}
 	}
 
-	// 2. Parse Signature-Input
-	sigInputHeader := r.Header.Get("Signature-Input")
-	log.Printf("[RFC9421] Signature-Input header: %s", sigInputHeader)
-	if sigInputHeader == "" {
-		return fmt.Errorf("Signature-Input header is missing")
-	}
-	params, err := parseSignatureInput(sigInputHeader)
-	if err != nil {
-		log.Printf("[RFC9421] Signature-Input parse error: %v", err)
-		return fmt.Errorf("Signature-Input parse error: %w", err)
-	}
-	log.Printf("[RFC9421] Parsed signature params: label=%s, components=%v, created=%d", params.Label, params.Components, params.Created)
-
-	// 3. Replay attack prevention: check created timestamp
-	created := time.Unix(params.Created, 0)
-	now := time.Now()
-	if now.Sub(created) > replayWindow {
-		return fmt.Errorf("request expired: created timestamp is too old")
-	}
-	if created.Sub(now) > replayWindow {
-		return fmt.Errorf("request from future: created timestamp is too far ahead")
-	}
-
-	// 4. Get the Signature header
-	sigHeader := r.Header.Get("Signature")
-	if sigHeader == "" {
-		return fmt.Errorf("Signature header is missing")
-	}
-
-	// 5. Extract the base64-encoded signature bytes for this label
-	sigBytes, err := extractSigValue(sigHeader, params.Label)
-	if err != nil {
-		return fmt.Errorf("Signature extract error: %w", err)
-	}
-
-	// 6. Reconstruct signature base string
-	// sigInputHeader for the @signature-params line is the component list + params portion
-	// e.g. ("@method" "@target-uri" "content-digest");created=...;keyid=...
-	// We pass the value of the full Signature-Input header value
-	sigBase := buildSignatureBase(r, params.Components, sigInputHeader)
-
-	// 7. Parse the client's X.509 public key from PEM cert
-	log.Printf("[RFC9421] Certificate PEM length: %d chars, first 100: %.100s", len(certPEM), certPEM)
+	// 3. Extract public key from stored certificate
 	publicKey, err := extractPublicKeyFromCertPEM(certPEM)
 	if err != nil {
-		log.Printf("[RFC9421] Certificate parse error: %v", err)
 		return fmt.Errorf("failed to extract public key from client cert: %w", err)
 	}
-	log.Printf("[RFC9421] Successfully extracted public key type: %T", publicKey)
 
-	// 8. Verify signature  (SHA-256 hash of signature base)
-	digest := sha256.Sum256([]byte(sigBase))
-	log.Printf("[RFC9421] ===== SIGNATURE BASE (FULL) =====")
-	log.Printf("[RFC9421]\n%s", sigBase)
-	log.Printf("[RFC9421] ===== END SIGNATURE BASE =====")
-	log.Printf("[RFC9421] Signature base length: %d bytes", len(sigBase))
-	log.Printf("[RFC9421] Signature base hex: %x", sigBase)
-	log.Printf("[RFC9421] Digest: %x", digest[:])
-
-	switch pub := publicKey.(type) {
-	case *rsa.PublicKey:
-		log.Printf("[RFC9421] Verifying RSA signature, sig length: %d bytes", len(sigBytes))
-		if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sigBytes); err != nil {
-			log.Printf("[RFC9421] RSA PKCS1v15 signature verification failed: %v", err)
-			return fmt.Errorf("RSA signature verification failed: %w", err)
-		}
-		log.Printf("[RFC9421] RSA signature verified")
-	case *ecdsa.PublicKey:
-		log.Printf("[RFC9421] Verifying ECDSA signature, sig length: %d bytes", len(sigBytes))
-		if !ecdsa.VerifyASN1(pub, digest[:], sigBytes) {
-			log.Printf("[RFC9421] ECDSA signature verification failed")
-			return fmt.Errorf("ECDSA signature verification failed")
-		}
-		log.Printf("[RFC9421] ECDSA signature verified")
-	default:
-		log.Printf("[RFC9421] Unsupported public key type: %T", publicKey)
-		return fmt.Errorf("unsupported public key type: %T", publicKey)
+	// 4. Use htmsig library verifier with a static key resolver
+	resolver := htmsighttp.StaticKeyResolver(publicKey)
+	verifier := htmsighttp.NewVerifier(resolver, htmsighttp.WithValidateExpires(false))
+	if err := verifier.VerifyRequest(context.Background(), r); err != nil {
+		return fmt.Errorf("RFC9421 signature verification failed: %w", err)
 	}
-
 	return nil
 }
 
@@ -685,14 +629,16 @@ func deploymentKey(clientID, deploymentID string) string {
 	return clientID + ":" + deploymentID
 }
 
+const defaultDeploymentID = "a3e2f5dc-912e-494f-8395-52cf3769bc06"
+
 func ensureDefaultDeployment(clientID string) {
-	key := deploymentKey(clientID, "deployment-001")
+	key := deploymentKey(clientID, defaultDeploymentID)
 	if _, exists := deployments[key]; exists {
 		return
 	}
 
 	deployments[key] = DeploymentData{
-		ID:            "deployment-001",
+		ID:            defaultDeploymentID,
 		ClientID:      clientID,
 		StatusHistory: []interface{}{},
 	}
@@ -712,21 +658,23 @@ func sha256Hex(data []byte) string {
 }
 
 func buildDeploymentYAML(clientID, deploymentID string) []byte {
-	yaml := fmt.Sprintf(`apiVersion: margo.org
+	yaml := fmt.Sprintf(`apiVersion: margo.org/v1alpha1
 kind: ApplicationDeployment
 metadata:
-  name: sample-workload
+  name: %s
   annotations:
     id: %s
 spec:
-  appPackageRef: sample-package
+  appPackageRef:
+    id: compose-sample
   deploymentProfile:
     type: compose
     components:
-      - name: app-component-1
+      - name: compose-sample
         properties:
-          packageLocation: oci://registry.margo.example/sample:1.0.0
-`, deploymentID)
+          packageLocation: https://raw.githubusercontent.com/nginx-proxy/nginx-proxy/refs/heads/main/docker-compose.yml
+          wait: true
+`, deploymentID, deploymentID)
 
 	_ = clientID
 	return []byte(yaml)
@@ -776,9 +724,9 @@ func buildStateManifest(clientID string, deploymentIDs []string) (map[string]int
 		bundleDigest := sha256Hex(bundleBytes)
 		bundle = map[string]interface{}{
 			"mediaType": "application/vnd.margo.bundle.v1+tar+gzip",
-			"digest":    bundleDigest,
+			"digest":    "sha256:" + bundleDigest,
 			"sizeBytes": len(bundleBytes),
-			"url":       fmt.Sprintf("/api/v1/clients/%s/bundles/%s", clientID, bundleDigest),
+			"url":       fmt.Sprintf("/api/v1/clients/%s/bundles/sha256:%s", clientID, bundleDigest),
 		}
 
 		for _, deploymentID := range deploymentIDs {
@@ -786,9 +734,9 @@ func buildStateManifest(clientID string, deploymentIDs []string) (map[string]int
 			deploymentDigest := sha256Hex(yamlBytes)
 			refs = append(refs, map[string]interface{}{
 				"deploymentId": deploymentID,
-				"digest":       deploymentDigest,
+				"digest":       "sha256:" + deploymentDigest,
 				"sizeBytes":    len(yamlBytes),
-				"url":          fmt.Sprintf("/api/v1/clients/%s/deployments/%s/%s", clientID, deploymentID, deploymentDigest),
+				"url":          fmt.Sprintf("/api/v1/clients/%s/deployments/%s/sha256:%s", clientID, deploymentID, deploymentDigest),
 			})
 		}
 	}
@@ -931,7 +879,7 @@ func handleOnboarding(w http.ResponseWriter, r *http.Request) {
 		ID:              clientID,
 		Certificate:     certRaw,
 		OnboardedAt:     time.Now().UTC(),
-		DeploymentsData: []string{"deployment-001"},
+		DeploymentsData: []string{defaultDeploymentID},
 	}
 	ensureDefaultDeployment(clientID)
 	mu.Unlock()
@@ -974,16 +922,17 @@ func handlePostCapabilities(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// NOTE: RFC 9421 signature verification temporarily disabled for capabilities endpoint
-	// Device expresses its signature intent during onboarding; capabilities reports device state
-	// Signature verification is only required for state-changing operations
-	// if err := verifyRFC9421Signature(r, client.Certificate, bodyBytes); err != nil {
-	// 	log.Printf("[Capabilities] Signature verification failed for %s: %v", clientID, err)
-	// 	respondJSON(w, 401, signatureAuthError(err.Error()))
-	// 	return
-	// }
+	// RFC 9421: verify Content-Digest and signature
+	if err := verifyRFC9421Signature(r, client.Certificate, bodyBytes); err != nil {
+		log.Printf("[Capabilities] Signature verification failed for %s: %v", clientID, err)
+		if strings.Contains(err.Error(), "Content-Digest") {
+			respondJSON(w, 400, ResponseError{Error: "Missing or invalid content-digest header"})
+			return
+		}
+		respondJSON(w, 401, signatureAuthError(err.Error()))
+		return
+	}
 
-	// Parse body
 	var body map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		respondJSON(w, 400, ResponseError{Error: "Invalid JSON body"})
@@ -1021,15 +970,21 @@ func handleGetDeployments(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	clientID := vars["clientId"]
 
+	log.Printf("[Deployments] 📨 GET request received for client: %s from %s", clientID, r.RemoteAddr)
+
 	// Validate client exists and retrieve cert
 	mu.RLock()
 	client, exists := clients[clientID]
 	mu.RUnlock()
 
 	if !exists {
+		log.Printf("[Deployments] ⚠ Client not found: %s", clientID)
 		respondJSON(w, 404, ResponseError{Error: fmt.Sprintf("Client not found: %s", clientID)})
 		return
 	}
+
+	// Check Accept header
+	log.Printf("[Deployments] Accept header: %s", r.Header.Get("Accept"))
 
 	// NOTE: RFC 9421 signature verification disabled for GET operations
 	// Read operations (GET) do not require signature verification
@@ -1095,7 +1050,8 @@ func handleGetBundle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expectedDigest := sha256Hex(bundleBytes)
-	if digest != expectedDigest {
+	normalizedDigest := strings.TrimPrefix(digest, "sha256:")
+	if normalizedDigest != expectedDigest {
 		respondJSON(w, 404, ResponseError{
 			Error: fmt.Sprintf("Bundle not found for digest: %s", digest),
 		})
@@ -1155,7 +1111,8 @@ func handleGetDeploymentManifest(w http.ResponseWriter, r *http.Request) {
 
 	yamlBytes := buildDeploymentYAML(clientID, deploymentID)
 	expectedDigest := sha256Hex(yamlBytes)
-	if digest != expectedDigest {
+	normalizedDigest := strings.TrimPrefix(digest, "sha256:")
+	if normalizedDigest != expectedDigest {
 		respondJSON(w, 404, ResponseError{
 			Error: fmt.Sprintf("Deployment not found for digest: %s", digest),
 		})
@@ -1210,6 +1167,10 @@ func handlePostStatus(w http.ResponseWriter, r *http.Request) {
 	// RFC 9421: full signature verification using stored client cert
 	if err := verifyRFC9421Signature(r, client.Certificate, bodyBytes); err != nil {
 		log.Printf("[Status] Signature verification failed for %s: %v", clientID, err)
+		if strings.Contains(err.Error(), "Content-Digest") {
+			respondJSON(w, 400, ResponseError{Error: "Missing or invalid content-digest header"})
+			return
+		}
 		respondJSON(w, 401, signatureAuthError(err.Error()))
 		return
 	}
@@ -1523,7 +1484,7 @@ func loadDeploymentsFromFile() error {
 		return fmt.Errorf("failed to unmarshal deployments: %w", err)
 	}
 
-	log.Printf("✓ Loaded %d deployments from persistent storage", len(deployments))
+	log.Printf("Loaded %d deployments from persistent storage", len(deployments))
 	return nil
 }
 
@@ -1551,14 +1512,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Optional: Clean up persistent data for fresh test runs
-	if os.Getenv("CLEAN_STARTUP") == "true" {
-		log.Printf("🧹 CLEAN_STARTUP=true: Removing persisted data for fresh start")
+	// Always reset persisted data on startup — test clients from previous runs
+	// are invalid (certs change each run) and only pollute the state.
+	// Set KEEP_DATA=true to skip this and resume from previous state.
+	if os.Getenv("KEEP_DATA") != "true" {
+		log.Printf("🧹 Clearing persisted data for a clean test run (set KEEP_DATA=true to skip)")
 		os.Remove(ClientsFile)
 		os.Remove(DeploymentsFile)
 	}
 
-	// Load persisted data from previous runs
+	// Load persisted data from previous runs (if not cleaned)
 	if err := loadClientsFromFile(); err != nil {
 		log.Printf("⚠ Failed to load clients: %v", err)
 	}

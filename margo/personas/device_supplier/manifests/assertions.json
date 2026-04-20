@@ -70,8 +70,8 @@
           "field": "apiVersion",
           "type": "string",
           "required": true,
-          "value": "margo.org",
-          "description": "apiVersion must be exactly 'margo.org'"
+          "value": "device.margo.org/v1alpha1",
+          "description": "apiVersion must be exactly 'device.margo.org/v1alpha1'"
         },
         {
           "rule_id": "capabilities-002",

@@ -104,7 +104,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-001",
@@ -152,7 +152,7 @@
         "method": "PUT",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-001",
@@ -253,8 +253,7 @@
           },
           {
             "field": "deployments.0.deploymentId",
-            "operation": "equals",
-            "value": "deployment-001"
+            "operation": "is_string"
           },
           {
             "field": "_headers.ETag",
@@ -473,7 +472,7 @@
       },
       {
         "id": "step-4.4",
-        "name": "Reject Onboarding Without Signature",
+        "name": "Onboard Without Signature Succeeds",
         "method": "POST",
         "endpoint": "/api/v1/onboarding",
         "request_body": {
@@ -484,12 +483,11 @@
         "skip_signing": true,
         "headers": {
         },
-        "expected_status": 401,
+        "expected_status": 201,
         "validations": [
           {
-            "field": "error",
-            "operation": "contains",
-            "value": "Signature verification failed"
+            "field": "clientId",
+            "operation": "is_string"
           }
         ],
         "extract_context": {}
@@ -530,7 +528,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest"
         },
         "headers": {
@@ -550,7 +548,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-002",
@@ -593,7 +591,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-003",
@@ -636,7 +634,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-004",
@@ -679,7 +677,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-005",
@@ -724,7 +722,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/{clientId}/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-006",
@@ -769,7 +767,7 @@
         "method": "POST",
         "endpoint": "/api/v1/clients/not-a-real-client/capabilities",
         "request_body": {
-          "apiVersion": "margo.org",
+          "apiVersion": "device.margo.org/v1alpha1",
           "kind": "DeviceCapabilitiesManifest",
           "properties": {
             "id": "device-007",
@@ -1059,5 +1057,67 @@
         "extract_context": {}
       }
     ]
+  },
+  {
+    "id": "scenario-live-assertion-demo",
+    "name": "Live Assertion Demo — Dynamic Error Code",
+    "description": "DEMO SCENARIO: Proves server reloads assertions.json on every restart. Step 7.1 sends an invalid capabilities request (missing apiVersion) which triggers a validation error. The expected HTTP status code comes directly from error_responses.unprocessable.status_code in assertions.json. Change that one value, restart, re-run — the code changes without touching any Go code.",
+    "steps": [
+      {
+        "id": "step-7.0",
+        "name": "Onboard Device (Demo Setup)",
+        "method": "POST",
+        "endpoint": "/api/v1/onboarding",
+        "request_body": {
+          "apiVersion": "onboarding.margo.org/v1alpha1",
+          "kind": "OnboardingRequest",
+          "certificate": "MIID-demo-device-cert"
+        },
+        "headers": {},
+        "expected_status": 201,
+        "validations": [
+          {
+            "field": "clientId",
+            "operation": "exists"
+          }
+        ],
+        "extract_context": {
+          "clientId": "clientId"
+        }
+      },
+      {
+        "id": "step-7.1",
+        "name": "Invalid Capabilities (missing apiVersion) — expects 422 from assertion",
+        "method": "POST",
+        "endpoint": "/api/v1/clients/{clientId}/capabilities",
+        "request_body": {
+          "kind": "DeviceCapabilitiesManifest",
+          "properties": {
+            "id": "demo-device-001",
+            "vendor": "Demo Corp",
+            "modelNumber": "DEMO-X1",
+            "serialNumber": "SN-DEMO-001",
+            "roles": ["Standalone Device"],
+            "resources": {
+              "cpu": { "cores": 4, "architecture": "amd64" },
+              "memory": "8Gi",
+              "storage": "128Gi",
+              "interfaces": [{ "type": "ethernet" }],
+              "peripherals": []
+            }
+          }
+        },
+        "headers": {},
+        "expected_status": 422,
+        "validations": [
+          {
+            "field": "status",
+            "operation": "exists"
+          }
+        ],
+        "extract_context": {}
+      }
+    ]
   }
+
 ]

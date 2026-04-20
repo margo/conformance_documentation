@@ -2,10 +2,7 @@ package main
 
 import (
 	"bytes"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rand"
-	"crypto/rsa"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -19,6 +16,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/lestrrat-go/htmsig/component"
+	htmsighttp "github.com/lestrrat-go/htmsig/http"
 )
 
 const (
@@ -124,7 +124,8 @@ func main() {
 	if !waitForServer(5 * time.Second) {
 		log.Fatal("❌ WFM Server not responding on http://localhost:3001")
 	}
-	fmt.Println("✅ WFM Server is ready\n")
+	fmt.Println("✅ WFM Server is ready")
+	fmt.Println()
 
 	// Run all test scenarios
 	var allResults []TestResult
@@ -330,71 +331,38 @@ func loadDevicePrivateKey() (interface{}, error) {
 	return nil, fmt.Errorf("unrecognized private key format")
 }
 
-// signRequest adds RFC 9421 Signature-Input, Signature, and Content-Digest headers.
-// Per spec: signs @method, @target-uri, and content-digest (if body present).
+// signRequest adds RFC 9421 Signature-Input, Signature, and Content-Digest headers
+// using the htmsig library — the same library used by the server for verification.
 func signRequest(req *http.Request, bodyBytes []byte) error {
 	key, err := loadDevicePrivateKey()
 	if err != nil {
-		// Log but don't fail — server will reject with 401 and test will show that
 		log.Printf("[sign] Could not load device key (%v); requests will fail signature check", err)
 		return nil
 	}
 
-	created := time.Now().Unix()
 	log.Printf("[sign] Request: %s %s, body length: %d bytes", req.Method, req.URL.Path, len(bodyBytes))
 
-	// Build Content-Digest for bodies
-	var components []string
-	components = append(components, "\"@method\"", "\"@target-uri\"")
+	// Build Content-Digest header for requests with a body
+	comps := []component.Identifier{
+		component.Method(),
+		component.TargetURI(),
+	}
 	if len(bodyBytes) > 0 {
 		digest := buildContentDigest(bodyBytes)
 		log.Printf("[sign] Content-Digest computed: %s (body first 100 chars: %.100s)", digest, string(bodyBytes))
 		req.Header.Set("Content-Digest", digest)
-		components = append(components, "\"content-digest\"")
+		comps = append(comps, component.New("content-digest"))
 	} else {
 		log.Printf("[sign] No body - Content-Digest not set")
 	}
 
-	// Build Signature-Input value
-	// e.g. sig1=("@method" "@target-uri" "content-digest");created=1234567890;keyid="device-key"
-	sigInputVal := fmt.Sprintf("sig1=(%s);created=%d;keyid=\"device-key\"",
-		strings.Join(components, " "), created)
-	req.Header.Set("Signature-Input", sigInputVal)
-
-	// Reconstruct signature base string
-	scheme := "https"
-	host := req.Host
-	if host == "" {
-		host = req.URL.Host
+	signer := htmsighttp.NewSigner(key, "device-key",
+		htmsighttp.WithComponents(comps...),
+		htmsighttp.WithLabel("sig1"),
+	)
+	if err := signer.SignRequest(context.Background(), req); err != nil {
+		return fmt.Errorf("htmsig SignRequest failed: %w", err)
 	}
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("\"@method\": %s\n", req.Method))
-	sb.WriteString(fmt.Sprintf("\"@target-uri\": %s://%s%s\n", scheme, host, req.URL.RequestURI()))
-	if len(bodyBytes) > 0 {
-		sb.WriteString(fmt.Sprintf("\"content-digest\": %s\n", req.Header.Get("Content-Digest")))
-	}
-	sb.WriteString(fmt.Sprintf("\"@signature-params\": %s", sigInputVal))
-	sigBase := sb.String()
-
-	// Hash and sign
-	digest := sha256.Sum256([]byte(sigBase))
-	var sigBytes []byte
-	switch k := key.(type) {
-	case *rsa.PrivateKey:
-		sigBytes, err = rsa.SignPKCS1v15(rand.Reader, k, crypto.SHA256, digest[:])
-		if err != nil {
-			return fmt.Errorf("RSA sign failed: %w", err)
-		}
-	case *ecdsa.PrivateKey:
-		sigBytes, err = ecdsa.SignASN1(rand.Reader, k, digest[:])
-		if err != nil {
-			return fmt.Errorf("ECDSA sign failed: %w", err)
-		}
-	default:
-		return fmt.Errorf("unsupported key type: %T", key)
-	}
-
-	req.Header.Set("Signature", "sig1=:"+base64.StdEncoding.EncodeToString(sigBytes)+":")
 	return nil
 }
 
@@ -585,42 +553,7 @@ func generateHTMLReport(results []TestResult) string {
 		}
 	}
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-    <title>Device Supplier Conformance Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { background: #333; color: white; padding: 20px; border-radius: 5px; }
-        .summary { margin: 20px 0; }
-        .pass { color: green; font-weight: bold; }
-        .fail { color: red; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #f2f2f2; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Device Supplier Conformance Test Report</h1>
-        <p>Margo Management Interface API 1.0.0</p>
-        <p>Generated: %s</p>
-    </div>
-    
-    <div class="summary">
-        <h2>Summary</h2>
-        <p>Total Tests: %d | <span class="pass">✅ Passed: %d</span> | <span class="fail">❌ Failed: %d</span></p>
-        <p>Success Rate: %.1f%%</p>
-    </div>
-    
-    <table>
-        <tr>
-            <th>Step</th>
-            <th>Status</th>
-            <th>HTTP Code</th>
-            <th>Details</th>
-        </tr>
-`, time.Now().Format(time.RFC3339), len(results), passCount, failCount, float64(passCount)/float64(len(results))*100)
+	html := "<!DOCTYPE html>\n<html>\n<head>\n    <title>Device Supplier Conformance Report</title>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 20px; }\n        .header { background: #333; color: white; padding: 20px; border-radius: 5px; }\n        .summary { margin: 20px 0; }\n        .pass { color: green; font-weight: bold; }\n        .fail { color: red; font-weight: bold; }\n        table { width: 100%; border-collapse: collapse; margin-top: 20px; }\n        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }\n        th { background: #f2f2f2; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>Device Supplier Conformance Test Report</h1>\n        <p>Margo Management Interface API 1.0.0</p>\n        <p>Generated: " + time.Now().Format(time.RFC3339) + "</p>\n    </div>\n    <div class=\"summary\">\n        <h2>Summary</h2>\n        <p>Total Tests: " + fmt.Sprintf("%d", len(results)) + " | <span class=\"pass\">&#x2705; Passed: " + fmt.Sprintf("%d", passCount) + "</span> | <span class=\"fail\">&#x274C; Failed: " + fmt.Sprintf("%d", failCount) + "</span></p>\n        <p>Success Rate: " + fmt.Sprintf("%.1f", float64(passCount)/float64(len(results))*100) + "%</p>\n    </div>\n    <table>\n        <tr><th>Step</th><th>Status</th><th>HTTP Code</th><th>Details</th></tr>\n"
 
 	for _, r := range results {
 		statusClass := "pass"
