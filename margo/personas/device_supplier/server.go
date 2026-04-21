@@ -658,26 +658,14 @@ func sha256Hex(data []byte) string {
 }
 
 func buildDeploymentYAML(clientID, deploymentID string) []byte {
-	yaml := fmt.Sprintf(`apiVersion: margo.org/v1alpha1
-kind: ApplicationDeployment
-metadata:
-  name: %s
-  annotations:
-    id: %s
-spec:
-  appPackageRef:
-    id: compose-sample
-  deploymentProfile:
-    type: compose
-    components:
-      - name: compose-sample
-        properties:
-          packageLocation: https://raw.githubusercontent.com/nginx-proxy/nginx-proxy/refs/heads/main/docker-compose.yml
-          wait: true
-`, deploymentID, deploymentID)
-
 	_ = clientID
-	return []byte(yaml)
+	templateBytes, err := os.ReadFile("manifests/deployment-template.yaml")
+	if err != nil {
+		log.Printf("[DeploymentYAML] Warning: could not read deployment-template.yaml: %v — using empty manifest", err)
+		return []byte{}
+	}
+	result := strings.ReplaceAll(string(templateBytes), "{{deploymentId}}", deploymentID)
+	return []byte(result)
 }
 
 func buildBundleArchive(clientID string, deploymentIDs []string) ([]byte, error) {
@@ -986,14 +974,12 @@ func handleGetDeployments(w http.ResponseWriter, r *http.Request) {
 	// Check Accept header
 	log.Printf("[Deployments] Accept header: %s", r.Header.Get("Accept"))
 
-	// NOTE: RFC 9421 signature verification disabled for GET operations
-	// Read operations (GET) do not require signature verification
-	// Only state-changing operations (POST/PUT/DELETE) require signature verification
-	// if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
-	// 	log.Printf("[Deployments] Signature verification failed for %s: %v", clientID, err)
-	// 	respondJSON(w, 401, signatureAuthError(err.Error()))
-	// 	return
-	// }
+	// RFC 9421 signature verification for GET operations
+	if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
+		log.Printf("[Deployments] Signature verification failed for %s: %v", clientID, err)
+		respondJSON(w, 401, signatureAuthError(err.Error()))
+		return
+	}
 
 	if !acceptsManifest(r.Header.Get("Accept")) {
 		w.WriteHeader(406)
@@ -1033,13 +1019,12 @@ func handleGetBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// NOTE: RFC 9421 signature verification disabled for GET operations
-	// Read operations (GET) do not require signature verification
-	// if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
-	// 	log.Printf("[Bundle] Signature verification failed for %s: %v", clientID, err)
-	// 	respondJSON(w, 401, signatureAuthError(err.Error()))
-	// 	return
-	// }
+	// RFC 9421 signature verification for GET operations
+	if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
+		log.Printf("[Bundle] Signature verification failed for %s: %v", clientID, err)
+		respondJSON(w, 401, signatureAuthError(err.Error()))
+		return
+	}
 
 	bundleBytes, err := buildBundleArchive(clientID, client.DeploymentsData)
 	if err != nil {
@@ -1087,13 +1072,12 @@ func handleGetDeploymentManifest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// NOTE: RFC 9421 signature verification disabled for GET operations
-	// Read operations (GET) do not require signature verification
-	// if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
-	// 	log.Printf("[DeploymentManifest] Signature verification failed for %s: %v", clientID, err)
-	// 	respondJSON(w, 401, signatureAuthError(err.Error()))
-	// 	return
-	// }
+	// RFC 9421 signature verification for GET operations
+	if err := verifyRFC9421Signature(r, client.Certificate, nil); err != nil {
+		log.Printf("[DeploymentManifest] Signature verification failed for %s: %v", clientID, err)
+		respondJSON(w, 401, signatureAuthError(err.Error()))
+		return
+	}
 
 	found := false
 	for _, knownDeploymentID := range client.DeploymentsData {
@@ -1115,14 +1099,6 @@ func handleGetDeploymentManifest(w http.ResponseWriter, r *http.Request) {
 	if normalizedDigest != expectedDigest {
 		respondJSON(w, 404, ResponseError{
 			Error: fmt.Sprintf("Deployment not found for digest: %s", digest),
-		})
-		return
-	}
-
-	_, _, err := buildStateManifest(clientID, client.DeploymentsData)
-	if err != nil {
-		respondJSON(w, 500, ResponseError{
-			Error: "Failed to build deployment manifest",
 		})
 		return
 	}
@@ -1381,13 +1357,6 @@ func ensureTLSCertificates() (certFile, keyFile string, err error) {
 		}
 	}
 
-	// Check if CA certificates are available
-	if _, err := os.Stat(caCertPath); err != nil {
-		log.Printf("⚠ CA certificate not found at %s, generating new CA certificates", caCertPath)
-		// For simplicity, we could generate new CA certs here, but for now we'll fail
-		// Alternatively, generate self-signed
-	}
-
 	// Generate server certificate
 	_, caKeyErr := os.Stat(caKeyPath)
 	_, caCertErr := os.Stat(caCertPath)
@@ -1449,9 +1418,6 @@ func saveClientsToFile() error {
 	defer mu.RUnlock()
 
 	log.Printf("[Persistence] Saving %d clients to disk...", len(clients))
-	for id := range clients {
-		log.Printf("  - Saving client: %s", id)
-	}
 
 	data, err := json.MarshalIndent(clients, "", "  ")
 	if err != nil {

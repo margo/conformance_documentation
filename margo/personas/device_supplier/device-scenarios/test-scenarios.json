@@ -256,6 +256,14 @@
             "operation": "is_string"
           },
           {
+            "field": "bundle.url",
+            "operation": "not_empty"
+          },
+          {
+            "field": "deployments.0.url",
+            "operation": "not_empty"
+          },
+          {
             "field": "_headers.ETag",
             "operation": "exists"
           }
@@ -466,6 +474,47 @@
             "field": "error",
             "operation": "contains",
             "value": "certificate"
+          }
+        ],
+        "extract_context": {}
+      },
+      {
+        "id": "step-4.5",
+        "name": "Reject Onboarding With Missing Kind",
+        "method": "POST",
+        "endpoint": "/api/v1/onboarding",
+        "request_body": {
+          "apiVersion": "onboarding.margo.org/v1alpha1",
+          "certificate": "MIID-missing-kind-cert"
+        },
+        "headers": {},
+        "expected_status": 400,
+        "validations": [
+          {
+            "field": "error",
+            "operation": "contains",
+            "value": "kind"
+          }
+        ],
+        "extract_context": {}
+      },
+      {
+        "id": "step-4.6",
+        "name": "Reject Onboarding With Wrong Kind Value",
+        "method": "POST",
+        "endpoint": "/api/v1/onboarding",
+        "request_body": {
+          "apiVersion": "onboarding.margo.org/v1alpha1",
+          "kind": "WrongKind",
+          "certificate": "MIID-wrong-kind-cert"
+        },
+        "headers": {},
+        "expected_status": 400,
+        "validations": [
+          {
+            "field": "error",
+            "operation": "contains",
+            "value": "kind"
           }
         ],
         "extract_context": {}
@@ -1046,6 +1095,59 @@
         "skip_signing": true,
         "headers": {
         },
+        "expected_status": 401,
+        "validations": [
+          {
+            "field": "error",
+            "operation": "contains",
+            "value": "Signature"
+          }
+        ],
+        "extract_context": {}
+      },
+      {
+        "id": "step-6.10",
+        "name": "Reject Unsigned GET Deployments",
+        "method": "GET",
+        "endpoint": "/api/v1/clients/{clientId}/deployments",
+        "skip_signing": true,
+        "headers": {
+          "Accept": "application/vnd.margo.manifest.v1+json"
+        },
+        "expected_status": 401,
+        "validations": [
+          {
+            "field": "error",
+            "operation": "contains",
+            "value": "Signature"
+          }
+        ],
+        "extract_context": {}
+      },
+      {
+        "id": "step-6.11",
+        "name": "Reject Unsigned GET Bundle",
+        "method": "GET",
+        "endpoint": "/api/v1/clients/{clientId}/bundles/{bundleDigest}",
+        "skip_signing": true,
+        "headers": {},
+        "expected_status": 401,
+        "validations": [
+          {
+            "field": "error",
+            "operation": "contains",
+            "value": "Signature"
+          }
+        ],
+        "extract_context": {}
+      },
+      {
+        "id": "step-6.12",
+        "name": "Reject Unsigned GET Deployment Manifest",
+        "method": "GET",
+        "endpoint": "/api/v1/clients/{clientId}/deployments/{deploymentId}/{deploymentDigest}",
+        "skip_signing": true,
+        "headers": {},
         "expected_status": 401,
         "validations": [
           {

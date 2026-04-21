@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -90,6 +91,11 @@ type TestContext struct {
 // ===== MAIN TEST RUNNER =====
 
 func main() {
+	// CLI flags for filtering
+	scenarioFilter := flag.String("scenario", "", "Run only the scenario with this ID (e.g. scenario-onboarding)")
+	stepFilter := flag.String("step", "", "Run only the step with this ID within the matched scenario (e.g. step-1.2)")
+	flag.Parse()
+
 	// Load device certificate from sandbox location
 	certData, err := os.ReadFile("/home/margo/sandbox/poc/device/agent/config/device-public.crt")
 	if err != nil {
@@ -133,6 +139,11 @@ func main() {
 	failCount := 0
 
 	for _, scenario := range scenarios {
+		// Apply scenario filter
+		if *scenarioFilter != "" && scenario.ID != *scenarioFilter {
+			continue
+		}
+
 		fmt.Printf("▶ Running Scenario: %s (%s)\n", scenario.Name, scenario.ID)
 		fmt.Printf("  Description: %s\n", scenario.Description)
 
@@ -141,6 +152,11 @@ func main() {
 		}
 
 		for _, step := range scenario.Steps {
+			// Apply step filter
+			if *stepFilter != "" && step.ID != *stepFilter {
+				continue
+			}
+
 			fmt.Printf("  → Step: %s\n", step.Name)
 
 			result := executeStep(step, ctx)
