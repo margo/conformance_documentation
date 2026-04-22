@@ -1353,24 +1353,33 @@ HTML table with all 43 steps:
 
 ## Real Device Integration
 
-### Setup
+For this server/suite, the only required handoff to a real device-agent is the CA certificate.
 
-**Terminal 1: Server with preserved data**
-```bash
-KEEP_DATA=true ./bin/server
+Copy `certs/ca-cert.pem` from this repo to the device-agent VM so the agent trusts the mock server CA.
+
+Current example path (from current real device-agent setup):
+
+```text
+~/sandbox/poc/device/agent/config/
 ```
 
-**Terminal 2: Run real agent**
-```bash
-/path/to/agent --config /path/to/config.yaml
-```
-
-### Reset for Fresh Cycle
+Copy command example (from suite host to agent host):
 
 ```bash
-rm /path/to/agent/data/agent.database.json
-rm data/clients.json data/deployments.json
+scp certs/ca-cert.pem margo@margo-device-k3s:~/sandbox/poc/device/agent/config/ca-cert.pem
 ```
+
+Or if you are on the same host:
+
+```bash
+cp certs/ca-cert.pem ~/sandbox/poc/device/agent/config/ca-cert.pem
+```
+
+Important:
+
+- This path is an example for the current environment.
+- Vendor-provided device-agents may use a different cert/config location.
+- The requirement remains the same: place `ca-cert.pem` in whatever location the device-agent is configured to read as its trusted CA.
 
 ---
 
