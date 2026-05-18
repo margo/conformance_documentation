@@ -1,4 +1,3 @@
-margo@margo9090:~/sandbox/standard/cmd/mock-wfm$ cat generate-certs.sh
 #!/bin/bash
 
 # Generate TLS certificates for Margo Mock WFM Server
@@ -101,36 +100,22 @@ openssl x509 -req -in "$OUTPUT_DIR/server.csr" \
 # Clean up temporary files
 rm -f "$OUTPUT_DIR/server.csr" "$OUTPUT_DIR/san.conf"
 
-# 6. Generate device certificates for conformance testing
+# 6. Generate device certificate for conformance testing
 echo "[6/6] Generating device test certificates..."
 
 # Device valid certificate - used for positive test scenarios
 openssl genrsa -out "$OUTPUT_DIR/device-key.pem" 2048 2>/dev/null
 openssl req -new -x509 -days $DAYS_VALID \
   -key "$OUTPUT_DIR/device-key.pem" \
-  -out "$OUTPUT_DIR/device-valid-cert.pem" \
+  -out "$OUTPUT_DIR/device-cert.pem" \
   -subj "/C=IN/ST=GGN/L=Sector48/O=AcmeCorp/OU=Devices/CN=device-001" 2>/dev/null
-
-# Device invalid certificate - for negative testing (quick-expired for demo)
-openssl genrsa -out "$OUTPUT_DIR/device-invalid-key.pem" 2048 2>/dev/null
-openssl req -new -x509 -days 1 \
-  -key "$OUTPUT_DIR/device-invalid-key.pem" \
-  -out "$OUTPUT_DIR/device-invalid-cert.pem" \
-  -subj "/C=IN/ST=GGN/L=Sector48/O=BadCorp/OU=Devices/CN=device-invalid" 2>/dev/null
-
-# Device revoked certificate - same cert used in assertions.json rejection list
-openssl genrsa -out "$OUTPUT_DIR/device-revoked-key.pem" 2048 2>/dev/null
-openssl req -new -x509 -days $DAYS_VALID \
-  -key "$OUTPUT_DIR/device-revoked-key.pem" \
-  -out "$OUTPUT_DIR/device-revoked-cert.pem" \
-  -subj "/C=IN/ST=GGN/L=Sector48/O=RevokedCorp/OU=Devices/CN=device-revoked" 2>/dev/null
 
 echo ""
 echo "✅ Certificate generation complete!"
 echo ""
 echo "📋 Generated files:"
 ls -lh "$OUTPUT_DIR"/ca-cert.pem "$OUTPUT_DIR"/ca-key.pem "$OUTPUT_DIR"/server-cert.pem "$OUTPUT_DIR"/server-key.pem 2>/dev/null
-ls -lh "$OUTPUT_DIR"/device-valid-cert.pem "$OUTPUT_DIR"/device-invalid-cert.pem "$OUTPUT_DIR"/device-revoked-cert.pem 2>/dev/null
+ls -lh "$OUTPUT_DIR"/device-cert.pem "$OUTPUT_DIR"/device-key.pem 2>/dev/null
 echo ""
 echo "🔍 Certificate details:"
 echo "  CA Certificate:"

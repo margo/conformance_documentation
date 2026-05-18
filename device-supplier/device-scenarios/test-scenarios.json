@@ -30,7 +30,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -83,7 +83,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -209,7 +209,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -420,7 +420,7 @@
         "request_body": {
           "apiVersion": "v1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -485,7 +485,7 @@
         "endpoint": "/api/v1/onboarding",
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {},
         "expected_status": 400,
@@ -506,7 +506,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "WrongKind",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {},
         "expected_status": 400,
@@ -527,7 +527,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "skip_signing": true,
         "headers": {
@@ -556,7 +556,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -869,7 +869,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {
         },
@@ -1173,7 +1173,7 @@
         "request_body": {
           "apiVersion": "onboarding.margo.org/v1alpha1",
           "kind": "OnboardingRequest",
-          "certificate": "./certs/device-valid-cert.pem"
+          "certificate": "./certs/device-cert.pem"
         },
         "headers": {},
         "expected_status": 201,

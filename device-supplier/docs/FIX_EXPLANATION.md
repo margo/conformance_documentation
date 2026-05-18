@@ -33,7 +33,7 @@
 │     └─ Sends it in onboarding request
 │
 └─ Test Suite (generates its OWN test certificates locally)
-   ├─ ./certs/device-valid-cert.pem ✅
+   ├─ ./certs/device-cert.pem ✅
    ├─ ./certs/device-invalid-cert.pem ❌
    ├─ ./certs/device-revoked-cert.pem ⛔
    │
@@ -57,7 +57,7 @@ Device (VM-X) ──→ [Own Cert] ──POST /api/v1/onboarding──→ Server
 **Test Flow (What Conformance Suite Simulates):**
 ```
 Test Suite (generates test certs locally)
-   ├─ device-valid-cert.pem → Simulates: Device from VM-A onboards ✅
+   ├─ device-cert.pem → Simulates: Device from VM-A onboards ✅
    ├─ device-revoked-cert.pem → Simulates: Blacklisted device rejected ⛔
    └─ Validates server's rejection mechanism works correctly
 ```
@@ -79,7 +79,7 @@ The **device brings its cert to the server** in the request.
 - ✅ `assertions.json` - Rejection list contains actual certificate content
 
 ### 📦 Generated Artifacts
-- ✅ `certs/device-valid-cert.pem` - For positive tests
+- ✅ `certs/device-cert.pem` - For positive tests
 - ✅ `certs/device-invalid-cert.pem` - For negative tests  
 - ✅ `certs/device-revoked-cert.pem` - For rejection tests
 
@@ -93,7 +93,7 @@ The **device brings its cert to the server** in the request.
    
 ✅ Test runner loads from local path:
    ./bin/run_tests 2>&1 | grep "Loaded device certificate from"
-   Output: ✓ Loaded device certificate from ./certs/device-valid-cert.pem
+   Output: ✓ Loaded device certificate from ./certs/device-cert.pem
 
 ✅ Rejection list populated:
    grep "-----BEGIN CERTIFICATE" manifests/assertions.json

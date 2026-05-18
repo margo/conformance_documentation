@@ -31,7 +31,7 @@ certData, err := os.ReadFile("/home/margo/sandbox/poc/device/agent/config/device
 **New Code:**
 ```go
 // Load device certificate from conformance suite's local certs folder
-certPath := "./certs/device-valid-cert.pem"
+certPath := "./certs/device-cert.pem"
 certData, err := os.ReadFile(certPath)
 ```
 
@@ -42,7 +42,7 @@ device_supplier/
 ├── certs/                      ← LOCAL, self-contained certificates
 │   ├── ca-cert.pem             (CA certificate)
 │   ├── server-cert.pem         (Server TLS certificate)
-│   ├── device-valid-cert.pem   (✅ Valid device for positive tests)
+│   ├── device-cert.pem   (✅ Valid device for positive tests)
 │   ├── device-invalid-cert.pem (❌ Expired device for negative tests)
 │   └── device-revoked-cert.pem (⛔ Revoked device for rejection tests)
 ├── manifests/
@@ -60,7 +60,7 @@ bash generate-certs.sh ./certs
 ```
 
 **Generated files:**
-- `device-valid-cert.pem` - Valid for 365 days, used for positive test scenarios
+- `device-cert.pem` - Valid for 365 days, used for positive test scenarios
 - `device-invalid-cert.pem` - Valid for 1 day, used for negative tests  
 - `device-revoked-cert.pem` - Valid for 365 days, but registered in rejection list
 
@@ -92,7 +92,7 @@ bash generate-certs.sh ./certs
 ```
 
 **Execution Flow:**
-1. Test runner loads: `./certs/device-valid-cert.pem` (1342 bytes)
+1. Test runner loads: `./certs/device-cert.pem` (1342 bytes)
 2. Server receives actual PEM certificate (starts with `-----BEGIN CERTIFICATE-----`)
 3. validate content, store client record ✅ HTTP 201 Created
 
@@ -134,12 +134,12 @@ Device.onboard({
 
 | Scenario | Certificate | Injection | Expected Result |
 |----------|------------|-----------|-----------------|
-| Onboard valid device | `device-valid-cert.pem` | ✅ Injected | 201 Created |
+| Onboard valid device | `device-cert.pem` | ✅ Injected | 201 Created |
 | Reject blocklisted device | Placeholder string | ❌ Not injected | 403 Forbidden |
 | Real revoked device | `device-revoked-cert.pem` | From device | 403 Forbidden |
-| Capabilities report | `device-valid-cert.pem` | ✅ Injected | 201 Created |
-| Deployment retrieval | `device-valid-cert.pem` | ✅ Injected | 200 OK |
-| Status update | `device-valid-cert.pem` | ✅ Injected | 200 OK |
+| Capabilities report | `device-cert.pem` | ✅ Injected | 201 Created |
+| Deployment retrieval | `device-cert.pem` | ✅ Injected | 200 OK |
+| Status update | `device-cert.pem` | ✅ Injected | 200 OK |
 
 ---
 
@@ -162,7 +162,7 @@ Added device certificate generation:
 ```bash
 openssl genrsa -out "$OUTPUT_DIR/device-key.pem" 2048
 openssl req -new -x509 -days $DAYS_VALID -key "$OUTPUT_DIR/device-key.pem" \
-  -out "$OUTPUT_DIR/device-valid-cert.pem" \
+  -out "$OUTPUT_DIR/device-cert.pem" \
   -subj "/C=IN/ST=GGN/L=Sector48/O=AcmeCorp/OU=Devices/CN=device-001"
 ```
 
@@ -174,7 +174,7 @@ certData, err := os.ReadFile("/home/margo/sandbox/poc/device/agent/config/device
 
 Changed to:
 ```go
-certPath := "./certs/device-valid-cert.pem"
+certPath := "./certs/device-cert.pem"
 certData, err := os.ReadFile(certPath)
 ```
 
@@ -240,7 +240,7 @@ make demo
 
 ## Troubleshooting
 
-**Error: Cannot load device certificate from ./certs/device-valid-cert.pem**
+**Error: Cannot load device certificate from ./certs/device-cert.pem**
 - Run: `bash generate-certs.sh ./certs`
 - Verify: `ls -la certs/device*.pem`
 

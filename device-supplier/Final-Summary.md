@@ -137,7 +137,7 @@ device_supplier/
 ├── certs/
 │   ├── ca-cert.pem, ca-key.pem       Root CA
 │   ├── server-cert.pem, server-key.pem Server TLS
-│   ├── device-valid-cert.pem, device-key.pem Device certs
+│   ├── device-cert.pem, device-key.pem Device certs
 │   └── generate-certs.sh            Certificate script
 │
 ├── data/                             Runtime state (auto-created/cleared)
@@ -366,7 +366,7 @@ Scenarios run **in order**, top to bottom. Each scenario gets its own fresh cont
   "request_body": {
     "apiVersion": "onboarding.margo.org/v1alpha1",
     "kind": "OnboardingRequest",
-    "certificate": "./certs/device-valid-cert.pem"
+    "certificate": "./certs/device-cert.pem"
   },
   "headers": {
     "Accept": "application/vnd.margo.manifest.v1+json"
@@ -483,7 +483,7 @@ The `certificate` field inside `request_body` gets special treatment:
 **Load from file (positive tests):**
 ```json
 "request_body": {
-  "certificate": "./certs/device-valid-cert.pem"
+  "certificate": "./certs/device-cert.pem"
 }
 ```
 Runner detects the path prefix and reads the file. Actual PEM content is sent to the server.
@@ -531,7 +531,7 @@ Test that the server accepts a valid request.
   "request_body": {
     "apiVersion": "onboarding.margo.org/v1alpha1",
     "kind": "OnboardingRequest",
-    "certificate": "./certs/device-valid-cert.pem"
+    "certificate": "./certs/device-cert.pem"
   },
   "expected_status": 201,
   "validations": [
@@ -564,7 +564,7 @@ Test that the server rejects an invalid request.
   "endpoint": "/api/v1/onboarding",
   "request_body": {
     "apiVersion": "onboarding.margo.org/v1alpha1",
-    "certificate": "./certs/device-valid-cert.pem"
+    "certificate": "./certs/device-cert.pem"
   },
   "expected_status": 400,
   "validations": [
@@ -597,7 +597,7 @@ Test a full lifecycle where Step 2 depends on data from Step 1.
   "request_body": {
     "apiVersion": "onboarding.margo.org/v1alpha1",
     "kind": "OnboardingRequest",
-    "certificate": "./certs/device-valid-cert.pem"
+    "certificate": "./certs/device-cert.pem"
   },
   "expected_status": 201,
   "validations": [
@@ -1069,7 +1069,7 @@ If your rule works, the test passes.
   "request_body": {
     "apiVersion": "onboarding.margo.org/v1alpha1",
     "kind": "OnboardingRequest",
-    "certificate": "./certs/device-valid-cert.pem"
+    "certificate": "./certs/device-cert.pem"
   },
   "expected_status": 201,
   "validations": [
@@ -1206,7 +1206,7 @@ if path starts with "./" or "certs/" {
 
 In test-scenarios.json:
 ```json
-"certificate": "./certs/device-valid-cert.pem"  // File path
+"certificate": "./certs/device-cert.pem"  // File path
 ```
 
 Becomes:
@@ -1232,7 +1232,7 @@ For rejection tests, skip file loading:
 | `ca-key.pem` | CA private key |
 | `server-cert.pem` | Server TLS cert (HTTPS) |
 | `server-key.pem` | Server TLS key |
-| `device-valid-cert.pem` | Device cert for positive tests |
+| `device-cert.pem` | Device cert for positive tests |
 | `device-key.pem` | Device key for signing |
 | `device-revoked.pem` | Revoked cert (in rejection list) |
 
@@ -1255,7 +1255,7 @@ Preserves clients.json and deployments.json between restarts.
 DEVICE_PRIVATE_KEY_PATH=/path/to/key.pem ./bin/run_tests
 ```
 
-**`DEVICE_CERTIFICATE_PATH`** (default: `./certs/device-valid-cert.pem`)
+**`DEVICE_CERTIFICATE_PATH`** (default: `./certs/device-cert.pem`)
 ```bash
 DEVICE_CERTIFICATE_PATH=/path/to/cert.pem ./bin/run_tests
 ```
@@ -1292,7 +1292,7 @@ Server uses `sync.RWMutex` to protect concurrent access. Multiple requests never
 ```
 Root CA (ca-cert.pem)
   ├─→ Server TLS cert (server-cert.pem)
-  └─→ Device cert (device-valid-cert.pem)
+  └─→ Device cert (device-cert.pem)
 ```
 
 ### HTTPS Connection

@@ -23,7 +23,7 @@ certData, err := os.ReadFile(
 
 ```go
 // ✅ NEW CODE - Self-contained
-certPath := "./certs/device-valid-cert.pem"
+certPath := "./certs/device-cert.pem"
 certData, err := os.ReadFile(certPath)
 ```
 
@@ -39,7 +39,7 @@ certData, err := os.ReadFile(certPath)
 
 ### 1️⃣ Extended `generate-certs.sh`
 Added generation of device test certificates:
-- `device-valid-cert.pem` - Valid device for positive tests
+- `device-cert.pem` - Valid device for positive tests
 - `device-invalid-cert.pem` - Invalid device for negative tests
 - `device-revoked-cert.pem` - Revoked device for rejection tests
 
@@ -50,7 +50,7 @@ Changed certificate loading from external path to local relative path:
 certPath := "/home/margo/sandbox/poc/device/agent/config/device-public.crt"
 
 // After:  
-certPath := "./certs/device-valid-cert.pem"
+certPath := "./certs/device-cert.pem"
 ```
 
 ### 3️⃣ Updated `assertions.json`
@@ -92,7 +92,7 @@ Real Margo Device (any VM)          Test Suite (runs anywhere)
 ### Test Scenarios
 
 ✅ **Positive Test** (Valid Device)
-- Uses: `./certs/device-valid-cert.pem`
+- Uses: `./certs/device-cert.pem`
 - Expected: 201 Created
 
 ❌ **Negative Test** (Rejected Device)  
@@ -112,7 +112,7 @@ Real Margo Device (any VM)          Test Suite (runs anywhere)
 # 1. Certificates generated
 ls -lh certs/device*.pem
 # Output:
-# -rw-rw-r-- device-valid-cert.pem (1.4K)
+# -rw-rw-r-- device-cert.pem (1.4K)
 # -rw-rw-r-- device-invalid-cert.pem (1.4K)
 # -rw-rw-r-- device-revoked-cert.pem (1.4K)
 
@@ -126,7 +126,7 @@ make build-tests
 
 # 4. Test runner loads certificates
 ./bin/run_tests -scenario scenario-onboarding 2>&1 | head -5
-# Output: ✓ Loaded device certificate from ./certs/device-valid-cert.pem (1342 bytes)
+# Output: ✓ Loaded device certificate from ./certs/device-cert.pem (1342 bytes)
 ```
 
 ---
