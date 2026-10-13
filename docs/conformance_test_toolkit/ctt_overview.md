@@ -19,6 +19,7 @@ flowchart TD
 
 ```
 ## Publishing flow
+
 - Supplier runs CTT → produces a single signed conformance result that includes test outcomes, requirement trace links, and evidence references.
 - Submit to registry.margo.org → validation of schema conformance, signature integrity, and requirement traceability.
 - Publish → entry is assigned a unique, immutable ID; a human‑readable Conformance Card is rendered in documentation, and a machine‑readable JSON record is exposed via API for programmatic discovery (e.g., by WFM tooling).

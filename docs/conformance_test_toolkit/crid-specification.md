@@ -50,17 +50,31 @@ Each CR-ID is scoped to **exactly one persona**.
 
 Portion codes represent the functional concern area of the specification to which the requirement belongs. Portions are derived deterministically from the specification section (in practice, inferred from the Source URL).
 
-| Portion | Code |
-|------|------|
-| Application Description | `APPDESC` |
-| Application Registry | `REG` |
-| Observability | `OBS` |
-| Management Interface | `MGMT` |
-| Security | `SEC` |
-| Deployment / Device Capabilities | `DEPLOY` |
-| General / Cross-cutting | `GEN` |
+| Portion | Code | Specification section |
+|------|------|------|
+| Application Description | `APPDESC` | `applications/application-description` |
+| Application Registry | `REG` | `applications/application-registry` |
+| Management Interface | `MGMT` | `margo-management-interface/*`, `problem-types` |
+| Device Requirements | `DEVREQ` | `margo-devices/device-requirements` |
+| Observability | `OBS` | `observability/*` |
+| Identity and Authorization | `IDENT` | `identity/*` |
+| Extensibility | `EXT` | `extensibility/*` |
+| Version Management | `VER` | `specification-version-management` |
+| General / Cross-cutting | `GEN` | Reserved for requirements that span multiple sections |
 
 Portion codes allow conformance to be claimed **selectively and transparently**.
+
+---
+
+## Number Assignment
+
+Numbers within each persona and portion are assigned in this order:
+
+1. Specification page, in navigation order
+2. Requirement strength (MUST, MUST NOT, REQUIRED, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY, OPTIONAL)
+3. Position within the page
+
+Requirements added to the specification receive the next unused number in their persona and portion.
 
 ---
 
@@ -83,6 +97,7 @@ These examples indicate:
 CR-IDs are intentionally decoupled from requirement wording and strength.
 
 A CR-ID:
+
 - ✅ **Does NOT encode** MUST / SHOULD / MAY
 - ✅ **Does NOT change** if text is clarified
 - ✅ **Does NOT change** if tests are refactored
@@ -104,8 +119,9 @@ Specification Requirement
 ```
 
 This enables:
+
 - Partial conformance by persona
-- Profile-based conformance (PR1, GA1, etc.)
+- Profile-based conformance (PR1, PR3, GA1, etc.)
 - Transparent reporting during plugfests
 
 ---

@@ -1,0 +1,4 @@
+.copilot-tracking/
+.DS_Store
+site/
+.venv/

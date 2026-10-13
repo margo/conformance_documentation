@@ -1,0 +1,12 @@
+/* Requirement tables are wide; use the full page width and keep URLs from stretching columns. */
+.md-grid {
+  max-width: 100%;
+}
+
+.md-typeset table:not([class]) {
+  font-size: 0.7rem;
+}
+
+.md-typeset table:not([class]) td {
+  overflow-wrap: anywhere;
+}

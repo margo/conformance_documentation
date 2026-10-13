@@ -1,0 +1,72 @@
+site_name: Margo Conformance Documentation
+site_description: Conformance requirements, test outlines, and Conformance Test Toolkit documentation for the Margo specification.
+repo_url: https://github.com/margo/conformance_docs
+repo_name: margo/conformance_docs
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+exclude_docs: |
+  conformance_test_toolkit/user_guide.md
+
+nav:
+  - Home: index.md
+  - Overview: overview/overview.md
+  - Personas:
+      - Application Supplier:
+          - Testing Outline: persona_based_content/app_supplier.md
+          - Requirements: persona_based_content/app_supplier_conf_requirements.md
+      - Device Supplier:
+          - Testing Outline: persona_based_content/device_supplier.md
+          - Requirements: persona_based_content/device_supplier_conf_requirements.md
+      - Workload Fleet Manager Supplier:
+          - Testing Outline: persona_based_content/wfm_supplier.md
+          - Requirements: persona_based_content/WFM_supplier_conf_requirements.md
+      - Non-Persona Requirement Candidates: persona_based_content/non_persona_requirement_candidates.md
+  - Conformance Test Toolkit:
+      - Overview: conformance_test_toolkit/ctt_overview.md
+      - CR-ID Specification: conformance_test_toolkit/crid-specification.md
+      - Conformance Artifacts: conformance_test_toolkit/conformance_artifacts.md
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_css:
+  - stylesheets/extra.css
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: warn
